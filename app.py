@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 # =========================
 st.set_page_config(page_title="Dashboard modèle", layout="wide")
 
-# Réduire les marges latérales
 st.markdown("""
     <style>
         .block-container {
@@ -43,22 +42,22 @@ st.dataframe(df, use_container_width=True)
 # =========================
 # Choix de la métrique
 # =========================
-metric = st.selectbox(
+available_metrics = ["Accuracy", "Precision", "Recall", "F1-score", "ROC-AUC"]
+metric_choice = st.selectbox(
     "Choisir une métrique à visualiser",
-    ["Accuracy", "Precision", "Recall", "F1-score", "ROC-AUC"]
+    ["All metrics"] + available_metrics
 )
 
 # =========================
-# Séparation des données
+# Données séparées
 # =========================
 base_df = df[df["Model"] == "Base"].copy()
 balanced_df = df[df["Model"] == "Balanced"].copy()
 
-# Couleurs
 colors = ["#4A90E2", "#50E3C2", "#F5A623"]
 
 # =========================
-# Fonction graphique barres
+# Fonctions graphiques
 # =========================
 def plot_bar(data, title, metric_name):
     fig, ax = plt.subplots(figsize=(5, 3.5))
@@ -81,9 +80,6 @@ def plot_bar(data, title, metric_name):
     ax.set_title(title, fontsize=12, fontweight="bold")
     return fig
 
-# =========================
-# Fonction graphique ligne
-# =========================
 def plot_line(data, title, metric_name, color):
     fig, ax = plt.subplots(figsize=(5, 3.5))
     ax.plot(data["Dataset"], data[metric_name], marker="o", linewidth=2.5, color=color)
@@ -97,53 +93,55 @@ def plot_line(data, title, metric_name, color):
     ax.grid(True, linestyle="--", alpha=0.4)
     return fig
 
+def show_metric_section(metric):
+    st.subheader(f"📈 Comparaison des modèles — {metric}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### Modèle Base")
+        st.pyplot(plot_bar(base_df, f"{metric} - Base", metric))
+
+    with col2:
+        st.markdown("### Modèle Balanced")
+        st.pyplot(plot_bar(balanced_df, f"{metric} - Balanced", metric))
+
+    st.subheader(f"📉 Évolution par dataset — {metric}")
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("### Modèle Base")
+        st.pyplot(plot_line(base_df, f"{metric} - Base", metric, "#4A90E2"))
+
+    with col4:
+        st.markdown("### Modèle Balanced")
+        st.pyplot(plot_line(balanced_df, f"{metric} - Balanced", metric, "#FF6F61"))
+
+    st.subheader(f"🔍 Comparaison directe Base vs Balanced — {metric}")
+
+    pivot_df = df.pivot(index="Dataset", columns="Model", values=metric)
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    pivot_df.plot(kind="bar", ax=ax, color=["#4A90E2", "#F5A623"])
+
+    for container in ax.containers:
+        ax.bar_label(container, fmt="%.2f", padding=3)
+
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Score")
+    ax.set_title(f"{metric} - Comparaison des deux modèles", fontsize=12, fontweight="bold")
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+    plt.xticks(rotation=0)
+
+    st.pyplot(fig)
+    st.markdown("---")
+
 # =========================
-# Comparaison côte à côte
+# Affichage selon le choix
 # =========================
-st.subheader(f"📈 Comparaison des modèles — {metric}")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("### Modèle Base")
-    st.pyplot(plot_bar(base_df, f"{metric} - Base", metric))
-
-with col2:
-    st.markdown("### Modèle Balanced")
-    st.pyplot(plot_bar(balanced_df, f"{metric} - Balanced", metric))
-
-# =========================
-# Courbes côte à côte
-# =========================
-st.subheader(f"📉 Évolution par dataset — {metric}")
-
-col3, col4 = st.columns(2)
-
-with col3:
-    st.markdown("### Modèle Base")
-    st.pyplot(plot_line(base_df, f"{metric} - Base", metric, "#4A90E2"))
-
-with col4:
-    st.markdown("### Modèle Balanced")
-    st.pyplot(plot_line(balanced_df, f"{metric} - Balanced", metric, "#FF6F61"))
-
-# =========================
-# Comparaison directe sur un seul graphe
-# =========================
-st.subheader(f"🔍 Comparaison directe Base vs Balanced — {metric}")
-
-pivot_df = df.pivot(index="Dataset", columns="Model", values=metric)
-
-fig, ax = plt.subplots(figsize=(6, 4))
-pivot_df.plot(kind="bar", ax=ax, color=["#4A90E2", "#F5A623"])
-
-for container in ax.containers:
-    ax.bar_label(container, fmt="%.2f", padding=3)
-
-ax.set_ylim(0, 1)
-ax.set_ylabel("Score")
-ax.set_title(f"{metric} - Comparaison des deux modèles", fontsize=12, fontweight="bold")
-ax.grid(axis="y", linestyle="--", alpha=0.3)
-plt.xticks(rotation=0)
-
-st.pyplot(fig)
+if metric_choice == "All metrics":
+    for metric in available_metrics:
+        show_metric_section(metric)
+else:
+    show_metric_section(metric_choice)
