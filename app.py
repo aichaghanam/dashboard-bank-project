@@ -2,80 +2,148 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# =========================
 # Configuration de la page
-st.set_page_config(page_title="Dashboard modèle", layout="centered")
+# =========================
+st.set_page_config(page_title="Dashboard modèle", layout="wide")
 
-# Charger les données
+# Réduire les marges latérales
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            padding-left: 4rem;
+            padding-right: 4rem;
+            max-width: 1200px;
+        }
+        h1, h2, h3 {
+            text-align: center;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# =========================
+# Chargement des données
+# =========================
 df = pd.read_csv("dashboard_metrics.csv")
 
+# =========================
 # Titre
-st.markdown("<h1 style='text-align: center; color: #4A90E2;'>📊 Tableau de bord du modèle</h1>", unsafe_allow_html=True)
+# =========================
+st.markdown("<h1 style='color:#4A90E2;'>📊 Tableau de bord du modèle</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; font-size:18px;'>Comparaison des performances des modèles Base et Balanced</p>", unsafe_allow_html=True)
 
-# Centrage du contenu
-col1, col2, col3 = st.columns([1, 3, 1])
+# =========================
+# Tableau global
+# =========================
+st.subheader("📋 Tableau récapitulatif")
+st.dataframe(df, use_container_width=True)
+
+# =========================
+# Choix de la métrique
+# =========================
+metric = st.selectbox(
+    "Choisir une métrique à visualiser",
+    ["Accuracy", "Precision", "Recall", "F1-score", "ROC-AUC"]
+)
+
+# =========================
+# Séparation des données
+# =========================
+base_df = df[df["Model"] == "Base"].copy()
+balanced_df = df[df["Model"] == "Balanced"].copy()
+
+# Couleurs
+colors = ["#4A90E2", "#50E3C2", "#F5A623"]
+
+# =========================
+# Fonction graphique barres
+# =========================
+def plot_bar(data, title, metric_name):
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    bars = ax.bar(data["Dataset"], data[metric_name], color=colors)
+
+    for bar in bars:
+        h = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            h + 0.02,
+            f"{h:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold"
+        )
+
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Score")
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    return fig
+
+# =========================
+# Fonction graphique ligne
+# =========================
+def plot_line(data, title, metric_name, color):
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    ax.plot(data["Dataset"], data[metric_name], marker="o", linewidth=2.5, color=color)
+
+    for i, val in enumerate(data[metric_name]):
+        ax.text(i, val + 0.02, f"{val:.2f}", ha="center", fontsize=10, fontweight="bold")
+
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Score")
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    ax.grid(True, linestyle="--", alpha=0.4)
+    return fig
+
+# =========================
+# Comparaison côte à côte
+# =========================
+st.subheader(f"📈 Comparaison des modèles — {metric}")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("### Modèle Base")
+    st.pyplot(plot_bar(base_df, f"{metric} - Base", metric))
 
 with col2:
+    st.markdown("### Modèle Balanced")
+    st.pyplot(plot_bar(balanced_df, f"{metric} - Balanced", metric))
 
-    st.subheader("📋 Données")
-    st.dataframe(df)
+# =========================
+# Courbes côte à côte
+# =========================
+st.subheader(f"📉 Évolution par dataset — {metric}")
 
-    # Sélection du modèle
-    model = st.selectbox("Choisir le modèle", df["Model"].unique())
-    filtered = df[df["Model"] == model]
+col3, col4 = st.columns(2)
 
-    # Palette de couleurs
-    colors = ["#4A90E2", "#50E3C2", "#F5A623"]
+with col3:
+    st.markdown("### Modèle Base")
+    st.pyplot(plot_line(base_df, f"{metric} - Base", metric, "#4A90E2"))
 
-    metrics = ["Accuracy", "Precision", "Recall", "F1-score", "ROC-AUC"]
+with col4:
+    st.markdown("### Modèle Balanced")
+    st.pyplot(plot_line(balanced_df, f"{metric} - Balanced", metric, "#FF6F61"))
 
-    for metric in metrics:
+# =========================
+# Comparaison directe sur un seul graphe
+# =========================
+st.subheader(f"🔍 Comparaison directe Base vs Balanced — {metric}")
 
-        st.markdown(f"### 📈 {metric}")
+pivot_df = df.pivot(index="Dataset", columns="Model", values=metric)
 
-        # ===== GRAPH BARRES =====
-        fig, ax = plt.subplots(figsize=(5, 3))
+fig, ax = plt.subplots(figsize=(6, 4))
+pivot_df.plot(kind="bar", ax=ax, color=["#4A90E2", "#F5A623"])
 
-        bars = ax.bar(filtered["Dataset"], filtered[metric], color=colors)
+for container in ax.containers:
+    ax.bar_label(container, fmt="%.2f", padding=3)
 
-        # Ajouter les valeurs sur les barres
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, height,
-                    f"{height:.2f}",
-                    ha='center', va='bottom')
+ax.set_ylim(0, 1)
+ax.set_ylabel("Score")
+ax.set_title(f"{metric} - Comparaison des deux modèles", fontsize=12, fontweight="bold")
+ax.grid(axis="y", linestyle="--", alpha=0.3)
+plt.xticks(rotation=0)
 
-        ax.set_ylim(0, 1)
-        ax.set_ylabel("Score")
-        ax.set_title(metric)
-
-        st.pyplot(fig)
-
-        # ===== GRAPH LIGNE =====
-        fig2, ax2 = plt.subplots(figsize=(5, 3))
-
-        ax2.plot(filtered["Dataset"], filtered[metric],
-                 marker='o', linewidth=2, color="#FF6F61")
-
-        for i, val in enumerate(filtered[metric]):
-            ax2.text(i, val, f"{val:.2f}", ha='center')
-
-        ax2.set_ylim(0, 1)
-        ax2.set_title(f"{metric} (évolution)")
-        ax2.set_ylabel("Score")
-
-        st.pyplot(fig2)
-
-        # ===== GRAPH CAMEMBERT =====
-        fig3, ax3 = plt.subplots(figsize=(4, 4))
-
-        ax3.pie(filtered[metric],
-                labels=filtered["Dataset"],
-                autopct="%1.2f%%",
-                colors=colors,
-                startangle=90)
-
-        ax3.set_title(f"Répartition {metric}")
-
-        st.pyplot(fig3)
-
-        st.markdown("---")
+st.pyplot(fig)
